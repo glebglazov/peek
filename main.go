@@ -20,7 +20,7 @@ const usage = `peek shares single files over the local network.
                             plain HTTP
   peek add <file> [alias]   share a file, named after it unless you say otherwise
   peek rm <alias>           stop sharing
-  peek list                 show what is shared
+  peek list | ls            show what is shared
   peek version              show the installed version
 `
 
@@ -58,7 +58,7 @@ func run(args []string) error {
 			return errors.New("usage: peek rm <alias>")
 		}
 		return report(request{Command: "rm", Alias: args[0]})
-	case "list":
+	case "list", "ls":
 		return report(request{Command: "list"})
 	case "version", "--version":
 		fmt.Println(version)
