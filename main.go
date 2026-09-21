@@ -110,15 +110,36 @@ func serve(args []string) error {
 		shares = tls.NewListener(shares, endpoint.TLS)
 	}
 
-	fmt.Printf("peek serves on %s\n", endpoint.BaseURL)
-	for _, share := range registry.List() {
-		fmt.Printf("  %s\n", shareURL(endpoint.BaseURL, share.Alias))
-	}
+	announce(endpoint, registry.List())
 
 	failed := make(chan error, 2)
 	go func() { failed <- control.Accept(controlSocket) }()
 	go func() { failed <- http.Serve(shares, shareHandler(registry)) }()
 	return <-failed
+}
+
+// announce tells the person who started the server the three things the
+// address alone leaves open: where it serves, who can reach it, and how to put
+// a file there. It stays on screen, because serve keeps running.
+func announce(endpoint Endpoint, shares []Share) {
+	fmt.Printf("peek serves on %s\n", endpoint.BaseURL)
+	fmt.Printf("  %s\n", endpoint.Reach)
+	fmt.Println("  stop with Ctrl-C; the shares come back on the next start")
+	fmt.Println()
+
+	if len(shares) == 0 {
+		fmt.Println("nothing is shared yet. In another terminal:")
+		fmt.Println("  peek add <file>          share a file, and print its link")
+		fmt.Println("  peek ls                  show what is shared")
+		return
+	}
+
+	fmt.Println("shared now:")
+	for _, share := range shares {
+		fmt.Printf("  %s\n", shareURL(endpoint.BaseURL, share.Alias))
+	}
+	fmt.Println()
+	fmt.Println("add more from another terminal with: peek add <file>")
 }
 
 // report runs one CLI command against the daemon and prints what it says.

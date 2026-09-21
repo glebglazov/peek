@@ -19,6 +19,9 @@ import (
 type Endpoint struct {
 	ListenAddr string
 	BaseURL    string
+	// Reach says, in the words the person starting the server needs, who can
+	// open these URLs. The address alone does not tell them.
+	Reach string
 	// TLS is nil when the share is served over plain HTTP.
 	TLS *tls.Config
 }
@@ -27,6 +30,7 @@ func lanEndpoint(port int) Endpoint {
 	return Endpoint{
 		ListenAddr: fmt.Sprintf(":%d", port),
 		BaseURL:    "http://" + net.JoinHostPort(lanAddress(), strconv.Itoa(port)),
+		Reach:      "anybody on this network can open these links, over plain HTTP",
 	}
 }
 
@@ -43,6 +47,7 @@ func tailscaleEndpoint(port int, certDir string, secure bool) (Endpoint, error) 
 	endpoint := Endpoint{
 		ListenAddr: net.JoinHostPort(address, strconv.Itoa(port)),
 		BaseURL:    "http://" + net.JoinHostPort(name, strconv.Itoa(port)),
+		Reach:      "only machines on your tailnet can open these links, over plain HTTP",
 	}
 	if !secure {
 		return endpoint, nil
@@ -53,6 +58,7 @@ func tailscaleEndpoint(port int, certDir string, secure bool) (Endpoint, error) 
 		return Endpoint{}, err
 	}
 	endpoint.BaseURL = "https://" + net.JoinHostPort(name, strconv.Itoa(port))
+	endpoint.Reach = "only machines on your tailnet can open these links, over HTTPS"
 	endpoint.TLS = &tls.Config{Certificates: []tls.Certificate{certificate}}
 	return endpoint, nil
 }
