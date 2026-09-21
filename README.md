@@ -19,7 +19,8 @@ Register files from another terminal. peek prints the URL to send:
     peek list
     peek rm spec
 
-The root URL shows an index of everything shared.
+The root URL shows an index of everything shared, newest change first,
+with the time each file last changed.
 
 ## How it works
 
