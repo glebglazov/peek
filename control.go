@@ -86,13 +86,13 @@ func (c *Control) handle(req request) response {
 		return response{Lines: []string{"removed " + share.Alias}}
 
 	case "list":
-		shares := c.registry.List()
+		shares := c.registry.ListByNewest()
 		if len(shares) == 0 {
 			return response{Lines: []string{"no shares"}}
 		}
 		lines := make([]string, 0, len(shares))
 		for _, share := range shares {
-			lines = append(lines, fmt.Sprintf("%-24s %s", shareURL(c.baseURL, share.Alias), share.Path))
+			lines = append(lines, fmt.Sprintf("%-24s %-16s %s", shareURL(c.baseURL, share.Alias), modifiedAt(share.Modified), share.Path))
 		}
 		return response{Lines: lines}
 

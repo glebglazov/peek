@@ -4,8 +4,6 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
-	"os"
-	"sort"
 	"strings"
 	"time"
 )
@@ -85,27 +83,11 @@ func shareHandler(registry *Registry) http.Handler {
 	})
 }
 
-// listing reads each file's modification time at request time, because the
-// registry records what is shared and the disk records when it changed. The
-// most recently changed file comes first, which is the one a reader who was
-// just sent a link is looking for.
+// listing turns the registry's order into the lines the page shows.
 func listing(registry *Registry) []listedShare {
-	shares := registry.List()
-
-	modified := make(map[string]time.Time, len(shares))
-	for _, share := range shares {
-		if info, err := os.Stat(share.Path); err == nil {
-			modified[share.Alias] = info.ModTime()
-		}
-	}
-
-	sort.SliceStable(shares, func(i, j int) bool {
-		return modified[shares[i].Alias].After(modified[shares[j].Alias])
-	})
-
-	listed := make([]listedShare, 0, len(shares))
-	for _, share := range shares {
-		listed = append(listed, listedShare{Alias: share.Alias, Modified: modifiedAt(modified[share.Alias])})
+	listed := make([]listedShare, 0)
+	for _, share := range registry.ListByNewest() {
+		listed = append(listed, listedShare{Alias: share.Alias, Modified: modifiedAt(share.Modified)})
 	}
 	return listed
 }

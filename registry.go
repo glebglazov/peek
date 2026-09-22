@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 // A Share is one file the daemon hands out, under the alias the user picked.
@@ -108,6 +109,33 @@ func (r *Registry) sorted() []Share {
 	}
 	sort.Slice(shares, func(i, j int) bool { return shares[i].Alias < shares[j].Alias })
 	return shares
+}
+
+// A DatedShare is a share with the time its file last changed. The registry
+// records what is shared; the disk records when it changed, so the time is
+// read when it is asked for and never stored.
+type DatedShare struct {
+	Share
+	Modified time.Time
+}
+
+// ListByNewest orders the shares the way a reader wants them: the file that
+// changed last comes first, because that is the one they were just sent.
+// A file peek can no longer stat keeps the zero time and falls to the end.
+func (r *Registry) ListByNewest() []DatedShare {
+	shares := r.List()
+
+	dated := make([]DatedShare, 0, len(shares))
+	for _, share := range shares {
+		var modified time.Time
+		if info, err := os.Stat(share.Path); err == nil {
+			modified = info.ModTime()
+		}
+		dated = append(dated, DatedShare{Share: share, Modified: modified})
+	}
+
+	sort.SliceStable(dated, func(i, j int) bool { return dated[i].Modified.After(dated[j].Modified) })
+	return dated
 }
 
 func (r *Registry) Lookup(alias string) (Share, bool) {

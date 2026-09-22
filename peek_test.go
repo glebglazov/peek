@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -152,5 +153,40 @@ func TestIndexShowsNewestFirst(t *testing.T) {
 	}
 	if order := []int{strings.Index(body, ">b-newest<"), strings.Index(body, ">a-older<"), strings.Index(body, ">c-oldest<")}; !(order[0] < order[1] && order[1] < order[2]) {
 		t.Errorf("index is not newest first, positions %v in:\n%s", order, body)
+	}
+}
+
+func TestListByNewestOrdersByFileTime(t *testing.T) {
+	dir := t.TempDir()
+	registry, err := LoadRegistry(filepath.Join(dir, "registry.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, share := range []struct {
+		alias    string
+		modified time.Time
+	}{
+		{"a-older", time.Now().Add(-2 * time.Hour)},
+		{"b-newest", time.Now()},
+		{"c-oldest", time.Now().Add(-48 * time.Hour)},
+	} {
+		file := filepath.Join(dir, share.alias)
+		if err := os.WriteFile(file, []byte("body"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(file, share.modified, share.modified); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := registry.Add(file, share.alias); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var order []string
+	for _, share := range registry.ListByNewest() {
+		order = append(order, share.Alias)
+	}
+	if want := []string{"b-newest", "a-older", "c-oldest"}; !slices.Equal(order, want) {
+		t.Errorf("got %v, want %v", order, want)
 	}
 }
