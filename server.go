@@ -12,7 +12,40 @@ import (
 
 var indexPage = template.Must(template.New("index").Parse(`<!doctype html>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>peek</title>
+<style>
+  /* The page follows the device, phone included: color-scheme hands the form
+     controls and the scrollbar to the browser, the variables cover the rest. */
+  :root {
+    color-scheme: light dark;
+    --page: #ffffff;
+    --ink: #1a1a1a;
+    --muted: #6a6a6a;
+    --link: #0b57d0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page: #16181c;
+      --ink: #e8e6e3;
+      --muted: #9aa0a6;
+      --link: #8ab4f8;
+    }
+  }
+  body {
+    margin: 0 auto;
+    padding: 2rem 1.25rem;
+    max-width: 40rem;
+    background: var(--page);
+    color: var(--ink);
+    font: 1rem/1.6 system-ui, -apple-system, sans-serif;
+  }
+  h1 { font-size: 1.25rem; }
+  ul { padding-left: 1.25rem; }
+  li { margin-bottom: 0.5rem; }
+  a { color: var(--link); }
+  small { color: var(--muted); }
+</style>
 <h1>Shared files</h1>
 {{- if .}}
 <ul>
