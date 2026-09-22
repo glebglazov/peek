@@ -190,3 +190,48 @@ func TestListByNewestOrdersByFileTime(t *testing.T) {
 		t.Errorf("got %v, want %v", order, want)
 	}
 }
+
+func TestBrowserGetsAWayBackToTheList(t *testing.T) {
+	dir := t.TempDir()
+	page := filepath.Join(dir, "page.html")
+	if err := os.WriteFile(page, []byte("<h1>hello</h1>"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	download := filepath.Join(dir, "notes.txt")
+	if err := os.WriteFile(download, []byte("plain"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	registry, err := LoadRegistry(filepath.Join(dir, "registry.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range []string{page, download} {
+		if _, err := registry.Add(file, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	handler := shareHandler(registry)
+
+	body, status := browserGet(handler, "/page.html")
+	if status != http.StatusOK || !strings.Contains(body, `href="/"`) {
+		t.Errorf("browser opening a page: got %d, no way back in:\n%s", status, body)
+	}
+	if body, _ := browserGet(handler, "/page.html?raw=1"); body != "<h1>hello</h1>" {
+		t.Errorf("framed page: got %q, want the file itself", body)
+	}
+	if body, _ := browserGet(handler, "/notes.txt"); body != "plain" {
+		t.Errorf("a file that is not a page: got %q, want the file itself", body)
+	}
+	if body, _ := get(handler, "/page.html"); body != "<h1>hello</h1>" {
+		t.Errorf("curl: got %q, want the file itself", body)
+	}
+}
+
+func browserGet(handler http.Handler, path string) (string, int) {
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, path, nil)
+	request.Header.Set("Sec-Fetch-Dest", "document")
+	handler.ServeHTTP(recorder, request)
+	return recorder.Body.String(), recorder.Code
+}

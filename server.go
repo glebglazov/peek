@@ -4,23 +4,23 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"time"
 )
 
-var indexPage = template.Must(template.New("index").Parse(`<!doctype html>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>peek</title>
-<style>
-  /* The page follows the device, phone included: color-scheme hands the form
-     controls and the scrollbar to the browser, the variables cover the rest. */
+// pageStyle is peek's own chrome — the index and the viewer bar. It never
+// reaches the shared file, which is served exactly as it sits on disk.
+const pageStyle = `<style>
+  /* The page follows the device, phone included. The colour scheme is declared
+     in a meta tag rather than here, because the browser reads that before it
+     parses any CSS and so paints the first frame in the right colour. */
   :root {
-    color-scheme: light dark;
     --page: #ffffff;
     --ink: #1a1a1a;
     --muted: #6a6a6a;
     --link: #0b57d0;
+    --edge: #d8d8d8;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -28,6 +28,7 @@ var indexPage = template.Must(template.New("index").Parse(`<!doctype html>
       --ink: #e8e6e3;
       --muted: #9aa0a6;
       --link: #8ab4f8;
+      --edge: #2c2f34;
     }
   }
   body {
@@ -43,7 +44,14 @@ var indexPage = template.Must(template.New("index").Parse(`<!doctype html>
   li { margin-bottom: 0.5rem; }
   a { color: var(--link); }
   small { color: var(--muted); }
-</style>
+</style>`
+
+var indexPage = template.Must(template.New("index").Parse(`<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>peek</title>
+` + pageStyle + `
 <h1>Shared files</h1>
 {{- if .}}
 <ul>
@@ -54,6 +62,34 @@ var indexPage = template.Must(template.New("index").Parse(`<!doctype html>
 {{- else}}
 <p>Nothing is shared yet.</p>
 {{- end}}
+`))
+
+// viewerPage puts a way back to the list above a shared page. The file goes in
+// a frame rather than being rewritten, so what the reader sees below the bar
+// is the file itself, byte for byte, and ?raw still serves it alone.
+var viewerPage = template.Must(template.New("viewer").Parse(`<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{.Alias}} — peek</title>
+` + pageStyle + `<style>
+  body { margin: 0; padding: 0; max-width: none; height: 100vh; display: flex; flex-direction: column; }
+  header {
+    flex: none;
+    display: flex;
+    gap: 1rem;
+    align-items: baseline;
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--edge);
+  }
+  header .name { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  iframe { flex: 1 1 auto; width: 100%; border: 0; background: var(--page); }
+</style>
+<header>
+  <a href="/">&#8592; All files</a>
+  <span class="name">{{.Alias}}</span>
+</header>
+<iframe src="/{{.Alias}}?raw=1" title="{{.Alias}}"></iframe>
 `))
 
 // A listedShare is one line of the index: the alias to follow, and when the
@@ -79,8 +115,30 @@ func shareHandler(registry *Registry) http.Handler {
 			http.NotFound(w, r)
 			return
 		}
+		if wantsViewer(r, share) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			viewerPage.Execute(w, share)
+			return
+		}
 		http.ServeFile(w, r, share.Path)
 	})
+}
+
+// wantsViewer holds the bar back for the one case it helps: a browser opening
+// a shared page to read it. The frame asks for ?raw, curl and a download ask
+// without the document header at all, and both get the file itself.
+func wantsViewer(r *http.Request, share Share) bool {
+	if r.Method != http.MethodGet || r.URL.Query().Has("raw") {
+		return false
+	}
+	if r.Header.Get("Sec-Fetch-Dest") != "document" {
+		return false
+	}
+	switch strings.ToLower(filepath.Ext(share.Path)) {
+	case ".html", ".htm":
+		return true
+	}
+	return false
 }
 
 // listing turns the registry's order into the lines the page shows.
